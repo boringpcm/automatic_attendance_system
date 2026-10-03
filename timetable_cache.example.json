@@ -1,0 +1,201 @@
+{
+  "timestamp": "2026-10-01T10:00:00.000000",
+  "date_str": "01 Oct 2026, 10:00 AM",
+  "username": "SampleStudent",
+  "days": {
+    "0": [
+      {
+        "code": "CSE4502",
+        "start": "09:10",
+        "end": "10:09",
+        "faculty": "Dr. Goldi Soni",
+        "room": "TF-LT-4"
+      },
+      {
+        "code": "CSE4501",
+        "start": "10:10",
+        "end": "11:09",
+        "faculty": "Dr. Kranti Kumar Dewangan",
+        "room": "TF-LT-4"
+      },
+      {
+        "code": "CSE4503",
+        "start": "11:10",
+        "end": "12:09",
+        "faculty": "Dr. Vinay Kumar Singh",
+        "room": "TF-LT-4"
+      },
+      {
+        "code": "CSE4504",
+        "start": "12:10",
+        "end": "13:10",
+        "faculty": "Dr. Omprakash Dewangan",
+        "room": "TF-LT-5"
+      }
+    ],
+    "1": [
+      {
+        "code": "CSE4504",
+        "start": "09:10",
+        "end": "10:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4501",
+        "start": "10:10",
+        "end": "11:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4502",
+        "start": "11:10",
+        "end": "12:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "IOT4501",
+        "start": "12:10",
+        "end": "13:13",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4505",
+        "start": "13:50",
+        "end": "14:49",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4505",
+        "start": "14:50",
+        "end": "15:49",
+        "faculty": "",
+        "room": ""
+      }
+    ],
+    "2": [
+      {
+        "code": "IOT4501",
+        "start": "09:10",
+        "end": "10:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4504",
+        "start": "10:10",
+        "end": "11:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4503",
+        "start": "11:10",
+        "end": "12:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "SEBEH40501",
+        "start": "12:10",
+        "end": "13:10",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4502",
+        "start": "13:50",
+        "end": "14:49",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "AECSS40501",
+        "start": "14:50",
+        "end": "15:49",
+        "faculty": "",
+        "room": ""
+      }
+    ],
+    "3": [
+      {
+        "code": "CRC2501",
+        "start": "09:10",
+        "end": "10:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4506",
+        "start": "11:10",
+        "end": "12:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4506",
+        "start": "12:10",
+        "end": "13:13",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4501",
+        "start": "13:50",
+        "end": "14:49",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "AECSS40501",
+        "start": "14:50",
+        "end": "15:49",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "ALAN40501",
+        "start": "15:50",
+        "end": "16:50",
+        "faculty": "",
+        "room": ""
+      }
+    ],
+    "4": [
+      {
+        "code": "IOT4501",
+        "start": "10:10",
+        "end": "11:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "CSE4503",
+        "start": "11:10",
+        "end": "12:09",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "IOT4502",
+        "start": "13:50",
+        "end": "14:49",
+        "faculty": "",
+        "room": ""
+      },
+      {
+        "code": "IOT4502",
+        "start": "14:50",
+        "end": "15:49",
+        "faculty": "",
+        "room": ""
+      }
+    ],
+    "5": [],
+    "6": []
+  }
+}

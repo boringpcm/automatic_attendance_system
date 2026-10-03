@@ -1,0 +1,79 @@
+{
+  "timestamp": "2026-10-01T10:00:00.000000",
+  "date_str": "01 Oct 2026, 10:00 AM",
+  "username": "SampleStudent",
+  "records": [
+    {
+      "code": "CSE4503",
+      "name": "CLOUD COMPUTING",
+      "count": "15/28",
+      "percent": "53.57"
+    },
+    {
+      "code": "CSE4505",
+      "name": "CLOUD COMPUTING LAB",
+      "count": "18/23",
+      "percent": "78.26"
+    },
+    {
+      "code": "CSE4504",
+      "name": "CYBER SECURITY",
+      "count": "18/31",
+      "percent": "58.06"
+    },
+    {
+      "code": "CSE4506",
+      "name": "CYBER SECURITY LAB",
+      "count": "16/22",
+      "percent": "72.73"
+    },
+    {
+      "code": "AECSS40501",
+      "name": "EFFECTIVE WRITING AND PROFESSIONAL ETHICS",
+      "count": "16/18",
+      "percent": "88.89"
+    },
+    {
+      "code": "CRC2501",
+      "name": "ENTREPRENEURSHIP",
+      "count": "6/8",
+      "percent": "75.00"
+    },
+    {
+      "code": "ALAN40501",
+      "name": "FRENCH ADVANCE GRAMMER AND COMPREHENSION",
+      "count": "11/11",
+      "percent": "100.00"
+    },
+    {
+      "code": "SEBEH40501",
+      "name": "INTERPERSONAL COMMUNICATION",
+      "count": "0/2",
+      "percent": "0.00"
+    },
+    {
+      "code": "IOT4501",
+      "name": "INTRODUCTION TO IOT AND EMBEDDED SYSTEM",
+      "count": "20/29",
+      "percent": "68.97"
+    },
+    {
+      "code": "IOT4502",
+      "name": "INTRODUCTION TO IOT AND EMBEDDED SYSTEM LAB",
+      "count": "12/16",
+      "percent": "75.00"
+    },
+    {
+      "code": "CSE4502",
+      "name": "INTRODUCTION TO MACHINE LEARNING",
+      "count": "13/29",
+      "percent": "44.83"
+    },
+    {
+      "code": "CSE4501",
+      "name": "SYSTEM PROGRAMMING AND COMPILER DESIGN",
+      "count": "17/30",
+      "percent": "56.67"
+    }
+  ]
+}
