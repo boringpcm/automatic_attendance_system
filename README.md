@@ -10,28 +10,87 @@ Instead of manually checking Amizone and typing numbers for every subject, this 
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & New Device Setup
 
-### On macOS / Linux
-Open Terminal and run:
+### 📋 Prerequisites on New Device
+Before running on a new computer, ensure you have:
+1. **Python 3.8+** installed ([Download from python.org](https://www.python.org/downloads/)).
+   > ⚠️ **Windows Users:** During Python installation, ensure you check the box **"Add python.exe to PATH"**.
+2. **Google Chrome** installed ([Download Chrome](https://www.google.com/chrome/)).
+3. **Git** installed ([Download Git](https://git-scm.com/)) or download this repo as a ZIP file.
+
+---
+
+### 📥 1. Clone or Download the Project
+Open Terminal (macOS/Linux) or Command Prompt / PowerShell (Windows):
 ```bash
+git clone https://github.com/boringpcm/automatic_attendance_system.git
 cd automatic_attendance_system
-
-# Launch interactive menu (prompts for login method / cache / demo):
-./run.sh
-
-# Or directly open Google Chrome for manual login:
-./run.sh --manual
 ```
 
-### On Windows
-Double-click `run.bat` or open Command Prompt / PowerShell:
+---
+
+### ⚡ 2. One-Click Launch
+
+#### On macOS / Linux
+```bash
+# Make launcher executable (first time only):
+chmod +x run.sh
+
+# Recommended: Open native Chrome for Cloudflare-safe manual login:
+./run.sh --manual
+
+# Or launch standard interactive menu:
+./run.sh
+```
+
+#### On Windows
+Double-click `run.bat` in File Explorer, or open Command Prompt / PowerShell:
 ```cmd
-cd automatic_attendance_system
+# Recommended: Open native Chrome for Cloudflare-safe manual login:
+run.bat --manual
+
+# Or launch standard interactive menu:
 run.bat
 ```
 
-> **Note:** The launcher script automatically verifies Python 3, builds an isolated virtual environment (`./venv`), installs dependencies from `requirements.txt`, and launches the planner. Supported CLI flags: `--manual` (open Chrome for manual login), `--live` (live fetch), `--demo` (demo data), `--once` (print report and exit).
+> **Automatic Environment Setup**: The launcher script (`run.sh` / `run.bat`) automatically creates an isolated virtual environment (`./venv`), installs dependencies from `requirements.txt`, and launches the program. You do not need to install packages globally.
+
+---
+
+### 🔑 3. First-Time Login Walkthrough
+1. Running with `--manual` opens your genuine **Google Chrome** browser directly to `https://s.amizone.net/`.
+2. Type your **Enrollment No.** and **Password**, and click the Cloudflare Turnstile verification checkbox.
+   > **Note:** The scraper connects to your native Chrome process via Chrome DevTools Protocol (CDP), meaning no automated chromedriver is detected by Cloudflare. Turnstile will verify smoothly.
+3. As soon as your Amizone dashboard loads, the system automatically extracts your live attendance and weekly schedule, saves them locally to `attendance_cache.json` and `timetable_cache.json`, and prints your full strategy report.
+4. **Subsequent Runs**: After the first run, you can run `./run.sh` (or `run.bat`) offline and press `c` to load cached data instantly without needing to log in again. Use menu option `7` or `--manual` whenever you want to refresh with fresh live data.
+
+---
+
+### 🛠️ Alternative: Manual Setup (Without Launcher Scripts)
+If you prefer setting up Python manually without `run.sh` / `run.bat`:
+```bash
+# 1. Create virtual environment
+python3 -m venv venv
+
+# 2. Activate virtual environment
+# On macOS / Linux:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Launch attendance planner
+python attendance_planner.py --manual
+```
+
+#### Supported CLI Flags:
+- `--manual` / `-m`: Launches native Google Chrome for manual login (Cloudflare-safe).
+- `--live` / `-l`: Prompts for live data fetch options.
+- `--demo` / `-d`: Uses sample demo data for quick testing without Amizone login.
+- `--once`: Generates the strategy report and exits immediately without staying in the interactive menu loop.
 
 ---
 
