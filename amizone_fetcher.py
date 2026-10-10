@@ -45,7 +45,7 @@ AMIZONE_TIMETABLE = "https://s.amizone.net/TimeTable"
 
 ATTENDANCE_EXTRACTION_JS = """
 (() => {
-    const items = document.querySelectorAll('#tasks li');
+    const items = document.querySelectorAll('#tasks li, ul.item-list li');
     if (!items || items.length === 0) return [];
     return Array.from(items).map(li => {
         const codeEl = li.querySelector('.sub-code');
@@ -59,8 +59,9 @@ ATTENDANCE_EXTRACTION_JS = """
             if (sc) sc.remove();
             name = clone.innerText.trim();
         }
+        let code = codeEl ? codeEl.innerText.replace(/[\\[\\]]/g, '').trim() : '';
         return {
-            code: codeEl ? codeEl.innerText.trim() : '',
+            code: code,
             name: name,
             count: countEl ? countEl.innerText.trim() : '',
             percent: percentEl ? percentEl.innerText.trim() : ''
@@ -361,10 +362,12 @@ def fetch_via_selenium(
     username: str = "",
     password: str = "",
     headless: bool = False,
+    manual_login: bool = False,
+    timeout_seconds: int = 180,
 ) -> tuple[list[dict], dict[int, list[dict]]]:
     """
-    Launch Chrome via Selenium, authenticate, scrape attendance from /Home,
-    then scrape timetable from /TimeTable.
+    Launch Chrome via Selenium, authenticate (or assist with manual browser login),
+    scrape attendance from /Home, then scrape timetable from /TimeTable.
     """
     options = Options()
     if headless:
@@ -398,57 +401,79 @@ def fetch_via_selenium(
         time.sleep(2)
 
         # Check if already authenticated
-        if "s.amizone.net/Home" in driver.current_url:
+        if "s.amizone.net/Home" in driver.current_url.lower():
             print("  ✓ Already authenticated.")
         else:
-            print(f"[3/3] Authenticating as '{username}'...")
-            wait = WebDriverWait(driver, 15)
+            if manual_login or not (username and password):
+                print("\n" + "=" * 65)
+                print("👉 MANUAL AMIZONE LOGIN MODE")
+                print("A Google Chrome window has opened on your screen.")
+                print("Please log in to Amizone in that browser window.")
+                print("The system is waiting and will automatically capture your")
+                print("live attendance as soon as your dashboard loads.")
+                print(f"(Waiting up to {timeout_seconds} seconds...)")
+                print("=" * 65 + "\n")
+            else:
+                print(f"[3/3] Authenticating as '{username}'...")
+                wait = WebDriverWait(driver, 15)
 
-            # Locate input fields
-            user_input = wait.until(
-                EC.presence_of_element_located((By.NAME, "_UserName"))
-            )
-            pass_input = driver.find_element(By.NAME, "_Password")
+                try:
+                    # Locate input fields
+                    user_input = wait.until(
+                        EC.presence_of_element_located((By.NAME, "_UserName"))
+                    )
+                    pass_input = driver.find_element(By.NAME, "_Password")
 
-            # Fill username and password
-            user_input.clear()
-            user_input.send_keys(username)
-            pass_input.clear()
-            pass_input.send_keys(password)
+                    # Fill username and password
+                    user_input.clear()
+                    user_input.send_keys(username)
+                    pass_input.clear()
+                    pass_input.send_keys(password)
 
-            # Trigger user activity simulation
-            driver.execute_script(
-                """
-                window.userActive = true;
-                const event = new MouseEvent('mousemove', { bubbles: true, cancelable: true });
-                document.dispatchEvent(event);
-                """
-            )
+                    # Trigger user activity simulation
+                    driver.execute_script(
+                        """
+                        window.userActive = true;
+                        const event = new MouseEvent('mousemove', { bubbles: true, cancelable: true });
+                        document.dispatchEvent(event);
+                        """
+                    )
 
-            # Click login button
-            try:
-                login_btn = driver.find_element(By.CSS_SELECTOR, "button.login100-form-btn")
-                login_btn.click()
-            except Exception:
-                driver.execute_script("document.getElementById('loginform').submit();")
+                    # Click login button
+                    try:
+                        login_btn = driver.find_element(By.CSS_SELECTOR, "button.login100-form-btn")
+                        login_btn.click()
+                    except Exception:
+                        driver.execute_script("document.getElementById('loginform').submit();")
+                except Exception as e:
+                    print(f"  [Notice] Auto-fill failed ({e}); please fill credentials directly in Chrome.")
 
-            print("  Waiting for Amizone dashboard to load...")
-            print("  (If Cloudflare verification appears on screen, please complete it if prompted)")
+                print("  Waiting for Amizone dashboard to load...")
+                print("  (If Cloudflare verification appears on screen, please complete it if prompted)")
 
-            # Wait for redirect to /Home
+            # Wait for redirect to /Home or tasks element
             start_wait = time.time()
-            max_wait = 60  # seconds
             logged_in = False
 
-            while time.time() - start_wait < max_wait:
-                current_url = driver.current_url
-                if "s.amizone.net/Home" in current_url:
-                    logged_in = True
-                    break
+            while time.time() - start_wait < timeout_seconds:
+                try:
+                    if len(driver.window_handles) == 0:
+                        raise RuntimeError("Chrome browser window was closed before login completed.")
+                except Exception as e:
+                    if "closed" in str(e).lower() or "no such window" in str(e).lower():
+                        raise RuntimeError("Chrome browser window was closed before login completed.")
 
-                body_text = driver.find_element(By.TAG_NAME, "body").text
-                if "Invalid User Name or Password" in body_text:
-                    raise ValueError("Amizone rejected credentials: Invalid User Name or Password.")
+                try:
+                    curr_url = driver.current_url.lower()
+                    if "/home" in curr_url or driver.find_elements(By.CSS_SELECTOR, "#tasks li, ul.item-list li"):
+                        logged_in = True
+                        break
+
+                    body_text = driver.find_element(By.TAG_NAME, "body").text
+                    if "Invalid User Name or Password" in body_text:
+                        print("  [Alert] 'Invalid User Name or Password' on screen. Please correct it in Chrome.")
+                except Exception:
+                    pass
 
                 time.sleep(1)
 
@@ -458,12 +483,23 @@ def fetch_via_selenium(
                     "Please check your internet connection or login credentials."
                 )
 
+        # Detect logged-in username if not provided
+        if not username:
+            try:
+                user_el = driver.find_elements(By.CSS_SELECTOR, "span.user-info, .user-name")
+                if user_el and user_el[0].text.strip():
+                    username = user_el[0].text.strip().replace("\n", " ")
+            except Exception:
+                pass
+            if not username:
+                username = "LiveStudent"
+
         # Step 1: Attendance Extraction from /Home
+        print("  ✓ Dashboard loaded. Extracting attendance details...")
         wait_home = WebDriverWait(driver, 15)
         wait_home.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#tasks li, ul.item-list li")))
         time.sleep(1.5)
 
-        print("  ✓ Dashboard loaded. Extracting attendance details...")
         records = driver.execute_script(ATTENDANCE_EXTRACTION_JS)
 
         if not records or len(records) == 0:
@@ -491,10 +527,17 @@ def fetch_via_selenium(
 # MAIN FETCHER INTERFACES
 # ---------------------------------------------------------------------------
 
-def fetch_amizone_data(force_relogin: bool = False) -> tuple[list[dict], dict[int, list[dict]]]:
+def fetch_amizone_data(
+    force_relogin: bool = False,
+    manual_login: bool = False,
+) -> tuple[list[dict], dict[int, list[dict]]]:
     """
     Main entry point to fetch live attendance records AND timetable from Amizone.
+    Supports CDP, automatic Selenium login, or manual in-browser login.
     """
+    if manual_login:
+        return fetch_via_selenium(headless=False, manual_login=True)
+
     # 1. Try fast CDP first
     if not force_relogin:
         print("Checking for existing active Amizone browser session...")
@@ -515,21 +558,27 @@ def fetch_amizone_data(force_relogin: bool = False) -> tuple[list[dict], dict[in
         username, password = u, p
     else:
         print("\n" + "=" * 55)
-        print("AMIZONE LOGIN REQUIRED")
+        print("AMIZONE LOGIN SELECTION")
         print("=" * 55)
-        print("Please enter your Amizone credentials to fetch live data.")
-        print("(A Chrome window will open. You can also log in directly in browser)")
-        username = input("Amizone User Name (Enrollment No.): ").strip()
-        while not username:
-            username = input("User Name cannot be empty: ").strip()
+        print("How would you like to log in?")
+        print("  [1] Manual login in Chrome (Recommended - Chrome opens, you log in)")
+        print("  [2] Automatic login (Enter Enrollment No. & Password here)")
+        method = input("Choose [1/2] (Default: 1): ").strip()
 
-        password = getpass.getpass("Amizone Password: ").strip()
-        while not password:
-            password = getpass.getpass("Password cannot be empty: ").strip()
+        if method == "2":
+            username = input("Amizone User Name (Enrollment No.): ").strip()
+            while not username:
+                username = input("User Name cannot be empty: ").strip()
 
-        remember = input("Save credentials locally for automatic login next time? [Y/n]: ").strip().lower()
-        if remember in ("", "y", "yes"):
-            save_credentials(username, password)
+            password = getpass.getpass("Amizone Password: ").strip()
+            while not password:
+                password = getpass.getpass("Password cannot be empty: ").strip()
+
+            remember = input("Save credentials locally for automatic login next time? [Y/n]: ").strip().lower()
+            if remember in ("", "y", "yes"):
+                save_credentials(username, password)
+        else:
+            return fetch_via_selenium(headless=False, manual_login=True)
 
     # 3. Launch Selenium
     try:

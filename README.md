@@ -16,7 +16,12 @@ Instead of manually checking Amizone and typing numbers for every subject, this 
 Open Terminal and run:
 ```bash
 cd automatic_attendance_system
+
+# Launch interactive menu (prompts for login method / cache / demo):
 ./run.sh
+
+# Or directly open Google Chrome for manual login:
+./run.sh --manual
 ```
 
 ### On Windows
@@ -26,7 +31,7 @@ cd automatic_attendance_system
 run.bat
 ```
 
-> **Note:** The launcher script automatically verifies Python 3, builds an isolated virtual environment (`./venv`), installs dependencies from `requirements.txt`, and launches the planner.
+> **Note:** The launcher script automatically verifies Python 3, builds an isolated virtual environment (`./venv`), installs dependencies from `requirements.txt`, and launches the planner. Supported CLI flags: `--manual` (open Chrome for manual login), `--live` (live fetch), `--demo` (demo data), `--once` (print report and exit).
 
 ---
 

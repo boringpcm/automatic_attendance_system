@@ -839,20 +839,60 @@ def main() -> None:
     timetable = load_primary_timetable(registry)
     print_timetable_summary(timetable)
 
-    # Step 2: Check for cached attendance / prompt
+    # Step 2: Check for flags / cached attendance / prompt
     cached_att = load_cached_attendance()
     example_file = BASE_DIR / "attendance_cache.example.json"
     raw_records: list[dict] = []
 
-    if cached_att and "records" in cached_att:
+    is_manual = any(arg in sys.argv for arg in ("--manual", "--manual-login", "-m"))
+    is_live = any(arg in sys.argv for arg in ("--live", "-l"))
+    is_demo = any(arg in sys.argv for arg in ("--demo", "-d"))
+    is_once = any(arg in sys.argv for arg in ("--once", "--no-menu", "--report-only"))
+
+    if is_manual:
+        print("[Live Mode] Opening Chrome for manual Amizone login...")
+        try:
+            raw_records, live_tt = fetch_amizone_data(force_relogin=True, manual_login=True)
+            if any(len(slots) > 0 for slots in live_tt.values()):
+                timetable = load_primary_timetable(registry)
+        except Exception as exc:
+            print(f"[Error] Manual login fetch failed: {exc}")
+
+    elif is_live:
+        print("[Live Mode] Fetching live data from Amizone...")
+        try:
+            raw_records, live_tt = fetch_amizone_data(force_relogin=True)
+            if any(len(slots) > 0 for slots in live_tt.values()):
+                timetable = load_primary_timetable(registry)
+        except Exception as exc:
+            print(f"[Error] Live fetch failed: {exc}")
+
+    elif is_demo and example_file.exists():
+        try:
+            with open(example_file, "r", encoding="utf-8") as f:
+                demo_data = json.load(f)
+                raw_records = demo_data.get("records", [])
+                print(f"  ✓ Loaded {len(raw_records)} subjects from demo dataset.")
+        except Exception:
+            pass
+
+    elif cached_att and "records" in cached_att:
         date_str = cached_att.get("date_str", "earlier")
         print(f"Found local cached attendance from {date_str}.")
-        choice = input("Press [Enter] to fetch fresh live data from Amizone, or type 'c' to use cache: ").strip().lower()
+        choice = input("Press [Enter] for live data, 'm' for manual Chrome login, or 'c' to use cache: ").strip().lower()
         if choice in ("c", "cache"):
             raw_records = cached_att["records"]
             print(f"  ✓ Loaded {len(raw_records)} subjects from local cache.")
+        elif choice in ("m", "manual"):
+            try:
+                raw_records, live_tt = fetch_amizone_data(force_relogin=True, manual_login=True)
+                if any(len(slots) > 0 for slots in live_tt.values()):
+                    timetable = load_primary_timetable(registry)
+            except Exception as exc:
+                print(f"[Error] Manual login fetch failed: {exc}")
+
     elif example_file.exists():
-        choice = input("Press [Enter] to fetch fresh live data from Amizone, or type 'd' for demo data: ").strip().lower()
+        choice = input("Press [Enter] for live Amizone fetch, 'm' for manual Chrome login, 'd' for demo: ").strip().lower()
         if choice in ("d", "demo", "example"):
             try:
                 with open(example_file, "r", encoding="utf-8") as f:
@@ -861,6 +901,13 @@ def main() -> None:
                     print(f"  ✓ Loaded {len(raw_records)} subjects from demo dataset.")
             except Exception:
                 pass
+        elif choice in ("m", "manual"):
+            try:
+                raw_records, live_tt = fetch_amizone_data(force_relogin=True, manual_login=True)
+                if any(len(slots) > 0 for slots in live_tt.values()):
+                    timetable = load_primary_timetable(registry)
+            except Exception as exc:
+                print(f"[Error] Manual login fetch failed: {exc}")
 
     if not raw_records:
         try:
@@ -889,6 +936,9 @@ def main() -> None:
     # Step 4: Display main report immediately
     rows = build_report(attendance, as_of, timetable, registry)
     print_report(rows, as_of)
+
+    if is_once:
+        return
 
     # Step 5: Interactive menu
     while True:
