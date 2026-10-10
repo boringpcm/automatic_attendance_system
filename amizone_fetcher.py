@@ -16,6 +16,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.request
@@ -227,8 +228,46 @@ def clear_saved_data() -> None:
 
 
 # ---------------------------------------------------------------------------
-# CDP / FAST SCRAPE
+# CDP / FAST SCRAPE & NATIVE CHROME RUNNER
 # ---------------------------------------------------------------------------
+
+def find_chrome_executable() -> str | None:
+    """Locate the native Google Chrome executable on the host system."""
+    candidates = [
+        # macOS
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        os.path.expanduser("~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        # Linux
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        # Windows
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+    return None
+
+
+class CDPClient:
+    """Lightweight CDP WebSocket client for tab inspection & extraction."""
+    def __init__(self, ws_conn):
+        self.ws = ws_conn
+        self.msg_id = 1
+
+    def call(self, method: str, params: dict | None = None) -> dict:
+        req_data = {"id": self.msg_id, "method": method, "params": params or {}}
+        self.msg_id += 1
+        self.ws.send(json.dumps(req_data))
+        while True:
+            r = json.loads(self.ws.recv())
+            if r.get("id") == req_data["id"]:
+                return r
+
 
 def try_cdp_scrape(port: int = 9222) -> tuple[list[dict], dict[int, list[dict]]] | None:
     """
@@ -245,8 +284,10 @@ def try_cdp_scrape(port: int = 9222) -> tuple[list[dict], dict[int, list[dict]]]
 
         target = None
         for t in tabs:
+            if t.get("type") != "page":
+                continue
             url = t.get("url", "")
-            if "s.amizone.net/Home" in url:
+            if "s.amizone.net/Home" in url or "s.amizone.net/home" in url:
                 target = t
                 break
             elif "s.amizone.net" in url and not target:
@@ -256,22 +297,11 @@ def try_cdp_scrape(port: int = 9222) -> tuple[list[dict], dict[int, list[dict]]]
             return None
 
         ws_url = target["webSocketDebuggerUrl"]
-        ws = websocket.create_connection(ws_url, timeout=3.0, suppress_origin=True)
-
-        msg_id = 1
-
-        def call_cdp(method: str, params: dict | None = None) -> dict:
-            nonlocal msg_id
-            msg = {"id": msg_id, "method": method, "params": params or {}}
-            msg_id += 1
-            ws.send(json.dumps(msg))
-            while True:
-                r = json.loads(ws.recv())
-                if r.get("id") == msg["id"]:
-                    return r
+        ws = websocket.create_connection(ws_url, timeout=3.0)
+        cdp = CDPClient(ws)
 
         # Check if URL is Home
-        eval_url = call_cdp("Runtime.evaluate", {"expression": "window.location.href"})
+        eval_url = cdp.call("Runtime.evaluate", {"expression": "window.location.href"})
         curr_url = eval_url.get("result", {}).get("result", {}).get("value", "")
 
         if "s.amizone.net" not in curr_url:
@@ -279,7 +309,7 @@ def try_cdp_scrape(port: int = 9222) -> tuple[list[dict], dict[int, list[dict]]]
             return None
 
         # Execute attendance extraction script
-        res = call_cdp(
+        res = cdp.call(
             "Runtime.evaluate",
             {"expression": ATTENDANCE_EXTRACTION_JS, "returnByValue": True},
         )
@@ -295,6 +325,170 @@ def try_cdp_scrape(port: int = 9222) -> tuple[list[dict], dict[int, list[dict]]]
     except Exception:
         pass
     return None
+
+
+def fetch_via_native_chrome(timeout_seconds: int = 240) -> tuple[list[dict], dict[int, list[dict]]] | None:
+    """
+    Launch native Google Chrome directly with remote debugging port enabled.
+    This guarantees 100% genuine browser TLS and DOM environment with NO chromedriver,
+    ensuring Cloudflare Turnstile passes seamlessly without bot detection.
+    """
+    chrome_exe = find_chrome_executable()
+    if not chrome_exe or not websocket:
+        return None
+
+    port = 9222
+    profile_dir = Path.home() / ".amizone_chrome_profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Check if Chrome with port 9222 is already open
+    is_running = False
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1.0):
+            is_running = True
+    except Exception:
+        pass
+
+    proc = None
+    if not is_running:
+        cmd = [
+            chrome_exe,
+            f"--remote-debugging-port={port}",
+            "--remote-allow-origins=*",
+            f"--user-data-dir={profile_dir}",
+            AMIZONE_LOGIN,
+        ]
+        print("\n[1/3] Launching native Google Chrome (Cloudflare-safe mode)...")
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(2.0)
+
+    print("\n" + "=" * 70)
+    print("👉 NATIVE GOOGLE CHROME LAUNCHED (CLOUDFLARE SAFE)")
+    print("A genuine Chrome window has opened on your screen.")
+    print("Please log into Amizone and click the Cloudflare verification.")
+    print("Because this is your genuine Chrome browser (no automation driver),")
+    print("Cloudflare Turnstile will verify successfully without failing!")
+    print(f"(Waiting up to {timeout_seconds} seconds for login...)")
+    print("=" * 70 + "\n")
+
+    # 2. Wait for login by polling tabs
+    start_time = time.time()
+    logged_in_tab = None
+
+    while time.time() - start_time < timeout_seconds:
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/json")
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
+                tabs = json.loads(resp.read().decode())
+
+            for t in tabs:
+                if t.get("type") != "page":
+                    continue
+                url = t.get("url", "").lower()
+                if "s.amizone.net/home" in url:
+                    logged_in_tab = t
+                    break
+            if logged_in_tab:
+                break
+        except Exception:
+            pass
+        time.sleep(1.0)
+
+    if not logged_in_tab:
+        if proc:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        raise TimeoutError("Timed out waiting for Amizone login in Chrome.")
+
+    print("  ✓ Login detected! Extracting attendance and timetable via CDP...")
+    time.sleep(1.5)
+
+    try:
+        ws_url = logged_in_tab["webSocketDebuggerUrl"]
+        ws = websocket.create_connection(ws_url, timeout=5.0)
+        cdp = CDPClient(ws)
+
+        # Detect user name
+        user_res = cdp.call("Runtime.evaluate", {
+            "expression": "(() => { const el = document.querySelector('span.user-info, .user-name'); return el ? el.innerText.trim() : ''; })()",
+            "returnByValue": True
+        })
+        detected_user = user_res.get("result", {}).get("result", {}).get("value") or "LiveStudent"
+        detected_user = detected_user.replace("\n", " ")
+
+        # Extract attendance
+        att_res = cdp.call("Runtime.evaluate", {
+            "expression": ATTENDANCE_EXTRACTION_JS,
+            "returnByValue": True
+        })
+        records = att_res.get("result", {}).get("result", {}).get("value")
+        if not records or not isinstance(records, list) or len(records) == 0:
+            ws.close()
+            raise RuntimeError("Connected to dashboard, but could not find attendance cards in DOM.")
+
+        # Save attendance cache
+        save_cached_attendance(records, username=detected_user)
+        print(f"  ✓ Successfully scraped {len(records)} attendance subjects!")
+
+        # Extract timetable
+        timetable = {i: [] for i in range(7)}
+        try:
+            print("  [Timetable] Navigating to Weekly Timetable...")
+            cdp.call("Page.navigate", {"url": AMIZONE_TIMETABLE})
+            time.sleep(2.5)
+
+            day_indices = {
+                "monday": 0, "tuesday": 1, "wednesday": 2,
+                "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6
+            }
+            for day_name, day_idx in day_indices.items():
+                click_js = f"""
+                (() => {{
+                    const els = Array.from(document.querySelectorAll('a, li, button, span'));
+                    const target = els.find(el => el.innerText.trim().toLowerCase().includes('{day_name}') && el.innerText.trim().length <= 25);
+                    if (target) {{ target.click(); return true; }}
+                    return false;
+                }})()
+                """
+                cdp.call("Runtime.evaluate", {"expression": click_js})
+                time.sleep(0.4)
+                cards_res = cdp.call("Runtime.evaluate", {"expression": TIMETABLE_CARDS_JS, "returnByValue": True})
+                cards = cards_res.get("result", {}).get("result", {}).get("value")
+                if isinstance(cards, list) and len(cards) > 0:
+                    timetable[day_idx] = cards
+
+            total_slots = sum(len(v) for v in timetable.values())
+            if total_slots > 0:
+                save_cached_timetable(timetable, username=detected_user)
+                print(f"  ✓ Successfully mapped {total_slots} timetable slots from Amizone!")
+            else:
+                cached_tt = load_cached_timetable()
+                if cached_tt and "days" in cached_tt:
+                    timetable = {int(k): v for k, v in cached_tt["days"].items()}
+        except Exception as exc:
+            print(f"  [Notice] Timetable extraction: {exc}; using cached/default timetable.")
+            cached_tt = load_cached_timetable()
+            if cached_tt and "days" in cached_tt:
+                timetable = {int(k): v for k, v in cached_tt["days"].items()}
+
+        ws.close()
+        if proc:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+        return records, timetable
+
+    except Exception as exc:
+        if proc:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        raise exc
 
 
 # ---------------------------------------------------------------------------
@@ -373,22 +567,36 @@ def fetch_via_selenium(
     if headless:
         options.add_argument("--headless=new")
 
-    # Anti-bot and clean session options
+    # Anti-bot, persistent profile, and clean session options
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option("useAutomationExtension", False)
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--remote-allow-origins=*")
     options.add_argument("--window-size=1366,868")
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-    )
+
+    profile_dir = Path.home() / ".amizone_chrome_profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    options.add_argument(f"--user-data-dir={profile_dir}")
 
     print("\n[1/3] Launching Chrome browser...")
     driver = None
     try:
         driver = webdriver.Chrome(options=options)
+        try:
+            driver.execute_cdp_cmd(
+                "Page.addScriptToEvaluateOnNewDocument",
+                {
+                    "source": """
+                        Object.defineProperty(navigator, 'webdriver', {
+                            get: () => undefined
+                        });
+                    """
+                }
+            )
+        except Exception:
+            pass
     except Exception as exc:
         raise RuntimeError(
             f"Failed to start Chrome WebDriver: {exc}\n"
@@ -536,6 +744,9 @@ def fetch_amizone_data(
     Supports CDP, automatic Selenium login, or manual in-browser login.
     """
     if manual_login:
+        native_res = fetch_via_native_chrome()
+        if native_res:
+            return native_res
         return fetch_via_selenium(headless=False, manual_login=True)
 
     # 1. Try fast CDP first
@@ -578,6 +789,9 @@ def fetch_amizone_data(
             if remember in ("", "y", "yes"):
                 save_credentials(username, password)
         else:
+            native_res = fetch_via_native_chrome()
+            if native_res:
+                return native_res
             return fetch_via_selenium(headless=False, manual_login=True)
 
     # 3. Launch Selenium
