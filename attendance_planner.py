@@ -382,6 +382,23 @@ def recovery_classes_needed(conducted: int, attended: int) -> int:
     return math.ceil((TARGET * conducted - attended) / (1 - TARGET))
 
 
+def extra_classes_for_critical(conducted: int, attended: int, future: int) -> tuple[int, int]:
+    """
+    Calculate shortage and extra conducted classes needed if critical threshold passed.
+    Returns: (duty_leave_shortage, extra_classes_conducted_needed)
+    - duty_leave_shortage: minimum attended credits needed to reach 75% without increasing conducted classes.
+    - extra_classes_conducted_needed: additional makeup classes faculty must conduct (and student attend) to reach >= 75%.
+    """
+    total_sem = conducted + future
+    max_att = attended + future
+    req = math.ceil(TARGET * total_sem)
+    shortage = max(0, req - max_att)
+    if shortage == 0:
+        return 0, 0
+    extra_needed = math.ceil((TARGET * total_sem - max_att) / (1 - TARGET))
+    return shortage, max(0, extra_needed)
+
+
 # ---------------------------------------------------------------------------
 # ATTENDANCE PARSING & INTEGRATION
 # ---------------------------------------------------------------------------
@@ -451,23 +468,28 @@ def build_report(
 
         recovery = recovery_classes_needed(conducted, attended)
         safe_misses = max(0, max_attended - required)
+        shortage_dl, extra_conducted = extra_classes_for_critical(conducted, attended, future)
 
         if total_semester == 0:
             status = "SAFE"
             advice = "No classes scheduled or recorded for this subject."
+            addl_req_str = "0"
         elif max_attended < required:
             status = "CRITICAL"
-            shortage = required - max_attended
             advice = (
-                f"Cannot reach 75% even with 100% future attendance. "
-                f"Short by {shortage} class(es). Seek faculty/duty leave assistance."
+                f"Cannot reach 75% within standard semester timetable. "
+                f"Short by {shortage_dl} class(es). Needs +{shortage_dl} duty leaves "
+                f"OR faculty must take at least {extra_conducted} extra remedial classes (100% attended)."
             )
+            addl_req_str = f"+{shortage_dl} ({extra_conducted} ext)"
         elif current < 75.0:
             status = "RECOVERY"
             advice = f"Attend next {recovery} class(es) continuously to reach {format_pct(75.0)}."
+            addl_req_str = f"{recovery} rec"
         else:
             status = "SAFE"
             advice = f"You can miss up to {safe_misses} future class(es) and still finish at or above 75%."
+            addl_req_str = "0"
 
         rows.append(
             {
@@ -483,6 +505,9 @@ def build_report(
                 "max_pct": max_pct,
                 "recovery": recovery,
                 "safe_misses": safe_misses,
+                "shortage_dl": shortage_dl,
+                "extra_conducted": extra_conducted,
+                "addl_req_str": addl_req_str,
                 "status": status,
                 "advice": advice,
             }
@@ -492,20 +517,20 @@ def build_report(
 
 
 def print_report(rows: list[dict], as_of: date) -> None:
-    print("\n" + "=" * 118)
+    print("\n" + "=" * 122)
     print("                      AMITY UNIVERSITY CHHATTISGARH - ATTENDANCE STRATEGY REPORT")
-    print("=" * 118)
+    print("=" * 122)
     print(f" As-Of Date        : {as_of.strftime('%A, %d %B %Y')}")
     print(f" Instruction Period: {SEMESTER_START.strftime('%d %b %Y')} to {LAST_INSTRUCTIONAL_DAY.strftime('%d %b %Y')}")
     print(f" University Target : {format_pct(TARGET * 100)}")
-    print("=" * 118)
+    print("=" * 122)
 
     header = (
         f"{'Code':<9} {'Current %':>10} {'Attended':>10} {'Conducted':>10} "
-        f"{'Future':>8} {'Max %':>9} {'Safe Miss':>11} {'Status':<12}"
+        f"{'Future':>8} {'Max %':>9} {'Safe Miss':>11} {'Addl Req':>14} {'Status':<14}"
     )
     print(header)
-    print("-" * 118)
+    print("-" * 122)
 
     rank = {"CRITICAL": 0, "RECOVERY": 1, "SAFE": 2}
     ordered = sorted(rows, key=lambda r: (rank[r["status"]], r["current"]))
@@ -526,22 +551,27 @@ def print_report(rows: list[dict], as_of: date) -> None:
             f"{row['future']:>8} "
             f"{format_pct(row['max_pct']):>9} "
             f"{row['safe_misses']:>11} "
-            f"{tag_str:<12}"
+            f"{row['addl_req_str']:>14} "
+            f"{tag_str:<14}"
         )
 
-    print("-" * 118)
+    print("-" * 122)
     print("STRATEGY & ADVICE BREAKDOWN")
     for row in ordered:
         tag_marker = "(!)" if row["status"] != "SAFE" else "(✓)"
         print(f"\n{tag_marker} {row['short']} — {row['name']} ({row['code']})")
         print(f"    Status: {row['status']} | Current: {format_pct(row['current'])} ({row['attended']}/{row['conducted']})")
-        print(f"    Action: {row['advice']}")
+        if row["status"] == "CRITICAL":
+            print(f"    Additional Required : Short by {row['shortage_dl']} classes (needs +{row['shortage_dl']} duty leaves OR +{row['extra_conducted']} extra remedial classes conducted by faculty to regain 75.0%)")
+        elif row["status"] == "RECOVERY":
+            print(f"    Recovery Requirement: Attend next {row['recovery']} scheduled classes continuously to regain 75.0%")
+        print(f"    Action Plan         : {row['advice']}")
         print(
-            f"    Target Requirement: At least {row['required']} attended "
+            f"    Target Requirement  : At least {row['required']} attended "
             f"classes out of {row['total_semester']} total semester classes."
         )
 
-    print("=" * 118 + "\n")
+    print("=" * 122 + "\n")
 
 
 def print_dangerous_subjects(rows: list[dict]) -> None:
@@ -561,6 +591,10 @@ def print_dangerous_subjects(rows: list[dict]) -> None:
         print(f"\n{tag} {row['short']:<8} ({row['name']})")
         print(f"    Current Attendance : {format_pct(row['current'])} ({row['attended']}/{row['conducted']})")
         print(f"    Maximum Possible   : {format_pct(row['max_pct'])} with {row['future']} future classes remaining")
+        if row["status"] == "CRITICAL":
+            print(f"    Additional Needed  : {row['addl_req_str']} (Duty leaves: +{row['shortage_dl']} | Extra remedial classes: +{row['extra_conducted']})")
+        else:
+            print(f"    Recovery Needed    : Attend next {row['recovery']} classes continuously")
         print(f"    Immediate Action   : {row['advice']}")
 
     print("=" * 90)

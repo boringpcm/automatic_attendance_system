@@ -134,28 +134,30 @@ python attendance_planner.py --manual
 When the system runs, it displays a detailed report:
 
 ```text
-======================================================================================================================
+==========================================================================================================================
                       AMITY UNIVERSITY CHHATTISGARH - ATTENDANCE STRATEGY REPORT
-======================================================================================================================
- As-Of Date        : Saturday, 03 October 2026
+==========================================================================================================================
+ As-Of Date        : Saturday, 10 October 2026
  Instruction Period: 20 Jul 2026 to 02 Dec 2026
  University Target : 75.0%
-======================================================================================================================
-Code       Current %   Attended  Conducted   Future     Max %   Safe Miss Status      
-----------------------------------------------------------------------------------------------------------------------
-ML             44.8%         13         29       23     69.2%           0 [!] CRITICAL
-IPC             0.0%          0          2        9     81.8%           0 [*] RECOVERY
-CC             53.6%         15         28       25     75.5%           0 [*] RECOVERY
-SPCD           56.7%         17         30       22     75.0%           0 [*] RECOVERY
-CS             58.1%         18         31       23     75.9%           0 [*] RECOVERY
-IOT            69.0%         20         29       25     83.3%           4 [*] RECOVERY
-CS-LAB         72.7%         16         22       16     84.2%           3 [*] RECOVERY
-ENT            75.0%          6          8        8     87.5%           2 [+] SAFE    
-IOT-LAB        75.0%         12         16       18     88.2%           4 [+] SAFE    
-CC-LAB         78.3%         18         23       14     86.5%           4 [+] SAFE    
-EWPE           88.9%         16         18       17     94.3%           6 [+] SAFE    
-FRENCH        100.0%         11         11        8    100.0%           4 [+] SAFE    
-======================================================================================================================
+==========================================================================================================================
+Code       Current %   Attended  Conducted   Future     Max %   Safe Miss       Addl Req Status        
+--------------------------------------------------------------------------------------------------------------------------
+IPC             0.0%          0          4        8     66.7%           0     +1 (4 ext) [!] CRITICAL  
+CS-LAB         16.7%          4         24       14     47.4%           0   +11 (42 ext) [!] CRITICAL  
+CS             29.4%         10         34       20     55.6%           0   +11 (42 ext) [!] CRITICAL  
+SPCD           31.2%         10         32       19     56.9%           0   +10 (37 ext) [!] CRITICAL  
+ML             40.6%         13         32       20     63.5%           0    +6 (24 ext) [!] CRITICAL  
+CC-LAB         44.0%         11         25       12     62.2%           0    +5 (19 ext) [!] CRITICAL  
+CC             51.6%         16         31       22     71.7%           0     +2 (7 ext) [!] CRITICAL  
+ANN            71.9%         23         32        0     71.9%           0     +1 (4 ext) [!] CRITICAL  
+ENT            63.6%          7         11        7     77.8%           0          5 rec [*] RECOVERY  
+EWPE           70.0%         14         20       15     82.9%           2          4 rec [*] RECOVERY  
+ANN-LAB        75.0%         12         16        0     75.0%           0              0 [+] SAFE      
+FRENCH        100.0%         12         12        7    100.0%           4              0 [+] SAFE      
+IOT           100.0%          0          0       22    100.0%           5              0 [+] SAFE      
+IOT-LAB       100.0%          0          0       16    100.0%           4              0 [+] SAFE      
+==========================================================================================================================
 ```
 
 ### Metrics:
@@ -163,10 +165,14 @@ FRENCH        100.0%         11         11        8    100.0%           4 [+] SA
 - **Future**: Total scheduled classes remaining between tomorrow and December 2 based on your primary timetable.
 - **Max %**: The absolute highest percentage you can achieve if you attend **100% of all future classes**.
 - **Safe Miss**: How many future classes you can miss while keeping your final percentage $\ge 75\%$.
+- **Addl Req (Additional Classes Required)**:
+  - For **CRITICAL** subjects: Shows classes short beyond standard timetable, formatted as `+X (Y ext)`, where `+X` is the duty/medical leave credits needed, and `Y ext` is the number of extra remedial classes faculty must conduct (and you attend) to reach $\ge 75\%$.
+  - For **RECOVERY** subjects: Shows `N rec`, the number of consecutive scheduled classes you must attend to cross the 75% threshold.
+  - For **SAFE** subjects: Shows `0`.
 - **Status**:
   - `[+] SAFE`: You are currently above 75% and have safe misses remaining.
   - `[*] RECOVERY`: You are below 75%, but can still recover by attending the indicated number of consecutive classes.
-  - `[!] CRITICAL`: Even with 100% attendance until the end of semester, it is impossible to reach 75%.
+  - `[!] CRITICAL`: Even with 100% attendance until the end of semester, it is impossible to reach 75% without institutional duty leave or extra classes.
 
 ---
 
